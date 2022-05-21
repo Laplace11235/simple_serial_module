@@ -4,7 +4,8 @@ import unittest as ut
 import os as os
 
 device_filename = "symbolic_device"
-module_filename = "simple_serial_device.ko"
+module_name = "simple_serial_device"
+module_filename = "{0}.ko".format(module_name)
 
 
 class Test(ut.TestCase):
@@ -22,16 +23,22 @@ class Test(ut.TestCase):
 	
 	def __unload_module__(self):
 		res = os.system("rmmod {0}".format(module_filename));
-		self.assertEqual(res, 0, "Cannot load module")
-	
+		self.assertEqual(res, 0, "Cannot unload module")
+
+	def __check_module_loaded__(self):
+		res = os.system("lsmod  | grep {0} > /dev/null".format(module_name));
+		self.assertEqual(res, 0, "Cannot chek  module loaded")
+
 	def setUp(self):
+		self.__load_module__()
 		self.__createDeviceFile__()
 
 	def tearDown(self):
 		self.__deleteDeviceFile__()
+		self.__unload_module__()
 
 	def test_load_unload(self):
-		pass
+		self.__check_module_loaded__()
 
 	def est_writeToEmpty(self):
 		write_str = "RnVjawo"
