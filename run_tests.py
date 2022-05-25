@@ -100,7 +100,7 @@ class Test(ut.TestCase):
 				res = dev_file.write(write_str)
 				self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def i_test_readUntillError(self):
+	def test_readUntillError(self):
 		write_str = "YW5kIGFnYWluCg"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)

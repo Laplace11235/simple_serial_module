@@ -18,11 +18,11 @@
 
 #define __BUFFER_SIZE	16
 
+static DEFINE_SPINLOCK(consumer_lock);
+static DEFINE_SPINLOCK(producer_lock);
 
 struct my_private_data{
 	char buffer[__BUFFER_SIZE];
-	size_t count;
-	size_t size;
 };
 
 struct my_circ_buffer_data{
@@ -54,8 +54,6 @@ static int my_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 	}
 	//rwlock_init(&ioctl_data->lock);
-	private_data->size      = __BUFFER_SIZE;
-	private_data->count     = 0;
 	file->private_data      = private_data;
 	return 0;
 }
@@ -73,7 +71,7 @@ static loff_t my_seek(struct file *file, loff_t offset, int whence)
 			new_offset = file->f_pos + offset;
 			break;
 		case 2:
-			new_offset = ((struct my_private_data*)file->private_data)->size + offset;
+			//new_offset = ((struct my_private_data*)file->private_data)->size + offset;
 			break;
 		default:
 			return -EINVAL;
@@ -92,10 +90,16 @@ static ssize_t my_write(struct file *file, const char __user *user_buffer,
 					size_t size, loff_t * offset)
 {
 	//struct my_private_data* data = (struct my_private_data *) file->private_data;
-	unsigned long head = p_circ_buffer->head;
+	ssize_t ret = -1;
+	unsigned long head;
+	unsigned long tail;
+
+	spin_lock(&producer_lock);
+
+	head = p_circ_buffer->head;
 
 	/* The spin_unlock() and next spin_lock() provide needed ordering. */
-	unsigned long tail = READ_ONCE(p_circ_buffer->tail);
+	tail = READ_ONCE(p_circ_buffer->tail);
 
 	if (CIRC_SPACE(head, tail, p_circ_buffer->size) >= 1){
 			/* insert one item into the buffer */
@@ -103,45 +107,60 @@ static ssize_t my_write(struct file *file, const char __user *user_buffer,
 
 			if (copy_from_user(p_item, user_buffer, 1))
 			{
-				return -EFAULT;
+				ret = -EFAULT;
+				goto out;
 			}
 			smp_store_release(&(p_circ_buffer->head),
 							(head + 1) & (p_circ_buffer->size - 1));
+			ret = 1;
 	}
-	//spin_unlock(&producer_lock);
-	return 1;
+out:
+	spin_unlock(&producer_lock);
+	return ret;
 }
 
 static ssize_t my_read(struct file *file, char *user_buffer, size_t size, loff_t *offset)
 {
 	ssize_t ret = -1;
-	//spin_lock(&consumer_lock);
-
+	unsigned long head;
+	unsigned long tail;
 	/* Read index before reading contents at that index. */
-	unsigned long head = smp_load_acquire(&(p_circ_buffer->head));
-	unsigned long tail = p_circ_buffer->tail;
+	spin_lock(&consumer_lock);
 
-	if (CIRC_CNT(head, tail, p_circ_buffer->size) >= 1) {
+	head = smp_load_acquire(&(p_circ_buffer->head));
+	tail = p_circ_buffer->tail;
 
+	pr_alert("%s: %d copy_to_user failed\n", __func__, __LINE__);
+	if (CIRC_CNT(head, tail, p_circ_buffer->size) >= 1) 
+	{
 			/* extract one item from the buffer */
 			char* item = &(p_circ_buffer->buffer[tail]);
+
+			pr_alert("%s: %d copy_to_user failed\n", __func__, __LINE__);
 
 			//consume_item(item);
 			if(copy_to_user(user_buffer, item, 1))
 			{
+				pr_alert("%s: %d copy_to_user failed\n", __func__, __LINE__);
 				return -EFAULT;
 			}
+
+			pr_alert("%s: %d offset %lld, file->f_pos %lld item %c, user_buffer[0] %c", \
+			__func__, __LINE__, *offset, file->f_pos, *item, user_buffer[0]);
+
 			/* Finish reading descriptor before incrementing tail. */
 			smp_store_release(&(p_circ_buffer->tail),
 							(tail + 1) & (p_circ_buffer->size - 1));
+
 		ret =  1;
 	}
 	else
 	{
+		pr_alert("%s: %d copy_to_user failed\n", __func__, __LINE__);
 		ret = 0;
 	}
 
-	//spin_unlock(&consumer_lock);
+	spin_unlock(&consumer_lock);
 	return ret;
 }
 
