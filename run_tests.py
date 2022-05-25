@@ -39,7 +39,7 @@ class Test(ut.TestCase):
 		self.__unload_module__()
 
 	####################### Tests ##############################
-	def i_test_load_unload(self):
+	def test_load_unload(self):
 		self.__check_module_loaded__()
 
 	def test_open_device_file_read(self):
@@ -54,6 +54,7 @@ class Test(ut.TestCase):
 		with  open(device_filename, "r+") as dev_file:
 			pass
 
+
 	def test_writeToEmpty(self):
 		write_str = "RnVjawo"
 		with  open(device_filename, "w") as dev_file:
@@ -64,6 +65,7 @@ class Test(ut.TestCase):
 		with  open(device_filename, "r") as dev_file:
 			read_buff = dev_file.read()
 		self.assertEqual(read_buff, "", "Read buffer not empty")
+
 
 	def test_writeRead(self):
 		write_str = "dGhpcwo"
@@ -98,7 +100,7 @@ class Test(ut.TestCase):
 				res = dev_file.write(write_str)
 				self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def test_readUntillError(self):
+	def i_test_readUntillError(self):
 		write_str = "YW5kIGFnYWluCg"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)
