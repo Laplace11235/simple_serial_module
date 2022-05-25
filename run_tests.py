@@ -39,8 +39,20 @@ class Test(ut.TestCase):
 		self.__unload_module__()
 
 	####################### Tests ##############################
-	def test_load_unload(self):
+	def i_test_load_unload(self):
 		self.__check_module_loaded__()
+
+	def test_open_device_file_read(self):
+		with  open(device_filename, "r") as dev_file:
+			pass
+
+	def test_open_device_file_write(self):
+		with  open(device_filename, "w") as dev_file:
+			pass
+
+	def test_open_device_file_append(self):
+		with  open(device_filename, "r+") as dev_file:
+			pass
 
 	def test_writeToEmpty(self):
 		write_str = "RnVjawo"
@@ -48,12 +60,12 @@ class Test(ut.TestCase):
 			res = dev_file.write(write_str)
 		self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def ignore_test_readFromEmpty(self):
+	def test_readFromEmpty(self):
 		with  open(device_filename, "r") as dev_file:
 			read_buff = dev_file.read()
 		self.assertEqual(read_buff, "", "Read buffer not empty")
 
-	def ignore_test_writeRead(self):
+	def test_writeRead(self):
 		write_str = "dGhpcwo"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)
@@ -65,7 +77,7 @@ class Test(ut.TestCase):
 			self.assertEqual(read_buff, write_str, "Mismatch between reading and writing")
 
 
-	def ignore_test_writeReadWrite(self):
+	def test_writeReadWrite(self):
 		write_str = "ZXhhbXBsZQo"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)
@@ -79,14 +91,14 @@ class Test(ut.TestCase):
 			res = dev_file.write(write_str)
 			self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def ignore_test_writeUntillError(self):
+	def i_test_writeUntillError(self):
 		write_str = "YWdhaW4K"
 		with  open(device_filename, "r+") as dev_file:
 			for _ in range(0, 4096):
 				res = dev_file.write(write_str)
 				self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def ignore_test_readUntillError(self):
+	def test_readUntillError(self):
 		write_str = "YW5kIGFnYWluCg"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)

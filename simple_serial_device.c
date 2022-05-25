@@ -1,62 +1,130 @@
+#include <linux/cdev.h>
+#include <linux/fs.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/fs.h>
-#include <linux/cdev.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
+// TODO FREE MEMEORY !!!!!
+// TODO allocate memory for buffer separatedly
+// TODO circular buffer (without seek from userspace)
+// TODO buffer overloading checking
 // TODO create special character device file from module code
-// TODO allocate memory for buffer
 
 #define DRIVER_NAME    "my_device_driver" 
 
 
-struct my_deivce_data {
-	struct cdev cdev;
-	char* buffer;
+#define __BUFFER_SIZE	16
+
+ 
+struct my_private_data{
+	char buffer[__BUFFER_SIZE];
+	size_t count;
 	size_t size;
 };
 
+static struct cdev my_cdev;
 static unsigned int my_major   = 0;
 static unsigned int num_of_dev = 1;
-static struct my_deivce_data device_data;
 
-
-
-#define __BUFFER_SIZE	1024
-
-static char __buffer[__BUFFER_SIZE];
 
 static int my_open(struct inode *inode, struct file *file)
 {
-	struct my_deivce_data* my_data;
-	pr_info("open serial device\n");
-	my_data = container_of(inode->i_cdev, struct my_deivce_data, cdev);
-	my_data->buffer    = __buffer;
-	my_data->size      = __BUFFER_SIZE;
-	file->private_data = my_data;
+	struct my_private_data* private_data;
+
+	pr_alert("open serial device, size private_data %ld\n", sizeof(struct my_private_data));
+
+	private_data = kmalloc(sizeof(struct my_private_data), GFP_KERNEL);
+
+	if(private_data == NULL){
+		return -ENOMEM;
+	}
+	//rwlock_init(&ioctl_data->lock);
+	private_data->size      = __BUFFER_SIZE;
+	private_data->count     = 0;
+	file->private_data      = private_data;
 	return 0;
+}
+static loff_t my_seek(struct file *file, loff_t offset, int whence)
+{
+	loff_t new_offset = 0;
+	pr_alert("%s offset %lld, whence %d (0 abs, 1/2 relative cur/end)", __func__, offset, whence);
+
+	switch(whence)
+	{
+		case 0:
+			new_offset = offset;
+			break;
+		case 1:
+			new_offset = file->f_pos + offset;
+			break;
+		case 2:
+			new_offset = ((struct my_private_data*)file->private_data)->size + offset;
+			break;
+		default:
+			return -EINVAL;
+	}
+	if(new_offset < 0)
+	{
+		return -EINVAL;
+	}
+
+	file->f_pos = new_offset;
+
+	return new_offset;
 }
 
 static ssize_t my_write(struct file *file, const char __user *user_buffer,
 					size_t size, loff_t * offset)
 {
-	return size;
-	// struct my_deivce_data *my_data = (struct my_deivce_data *) file->private_data;
-	// ssize_t len = min(my_data->size - (size_t)*offset, size);
+	struct my_private_data* data = (struct my_private_data *) file->private_data;
+	ssize_t len = min(data->size - (size_t)*offset, size);
 
-	//if (len <= 0)
-	//	return 0;
 
-	//if (copy_from_user(my_data->buffer + *offset, user_buffer, len))
-	//	return -EFAULT;
+	if (len <= 0){
+		// we just give up ?
+		return 0;
+	}
 
-	//*offset += len;
-	//return len;
+	if (copy_from_user(data->buffer + *offset, user_buffer, len))
+	{
+		return -EFAULT;
+	}
+
+	pr_alert("%s:%d offset %lld, len %ld file->f_pos %lld", __func__, __LINE__, *offset, len, file->f_pos);
+
+	data->count += len;
+
+	*offset += len;
+	return len;
 }
 
-static ssize_t my_read(struct file *file, char __user *user_buffer, size_t size, loff_t *offset)
+static ssize_t my_read(struct file *file, char *user_buffer, size_t size, loff_t *offset)
 {
-	//my_data = (struct my_deivce_data *) file->private_data;
-	return size;
+	ssize_t len, ret;
+	struct my_private_data* data;
+
+	data = (struct my_private_data *) file->private_data;
+	
+
+	if (data->count <= 0){
+		// empty buffer
+		return 0;
+	}
+
+	//if (copy_to_user(user_buffer, data->buffer, data->count))
+	if (copy_to_user(user_buffer, data->buffer + *offset, data->count))
+	{
+		return -EFAULT;
+	}
+
+	ret  = data->count;
+	data->count = 0;
+
+	*offset += len;
+	pr_alert("%s: %d offset %lld, size %ld len %lu", __func__, __LINE__, *offset, size, len);
+
+	return ret;
 }
 
 static int my_release(struct inode* __inode, struct file* __file){
@@ -67,6 +135,7 @@ static int my_release(struct inode* __inode, struct file* __file){
 const struct file_operations my_fops = {
 	.owner   = THIS_MODULE,
 	.open    = my_open,
+	.llseek  = my_seek,
 	.read    = my_read,
 	.write   = my_write,
 	.release = my_release,
@@ -87,9 +156,9 @@ static int my_init(void)
 
 	my_major = MAJOR(device_id);
 
-	cdev_init(&device_data.cdev, &my_fops);
+	cdev_init(&my_cdev, &my_fops);
 
-	add_err = cdev_add(&device_data.cdev, device_id, num_of_dev);
+	add_err = cdev_add(&my_cdev, device_id, num_of_dev);
 
 	if(add_err != 0)
 	{
@@ -104,7 +173,7 @@ static int my_init(void)
 error_out:
 	if(add_err == 0)
 	{
-		cdev_del(&device_data.cdev);
+		cdev_del(&my_cdev);
 	}
 
 	if(alloc_err == 0)
@@ -118,7 +187,7 @@ static void my_exit(void)
 {
 	dev_t dev = MKDEV(my_major, 0);
 
-	cdev_del(&device_data.cdev);
+	cdev_del(&my_cdev);
 	unregister_chrdev_region(dev, num_of_dev);
 	pr_alert("%s driver removed\n", DRIVER_NAME);
 }
