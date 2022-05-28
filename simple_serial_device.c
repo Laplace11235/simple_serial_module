@@ -7,19 +7,17 @@
 
 #include <linux/circ_buf.h>
 
-// TODO fix seek
-// TODO buffer overloading checking
 // TODO create special character device file from module code
+// TODO buffer size as parameter?
+// TODO debug out
+// TODO indets of code
 
 #define DRIVER_NAME    "my_device_driver" 
-
 
 #define __BUFFER_SIZE	16
 
 static DEFINE_SPINLOCK(consumer_lock);
 static DEFINE_SPINLOCK(producer_lock);
-
-
 
 struct my_circ_buffer{
 	char buffer[__BUFFER_SIZE];
@@ -37,46 +35,20 @@ static unsigned int num_of_dev              = 1;
 
 static int my_open(struct inode *inode, struct file *file)
 {
-
 	pr_alert("open serial device, size private_data %ld\n", sizeof(struct my_circ_buffer));
-
 
 	file->private_data      = _p_circ_buffer;
 	return 0;
 }
 static loff_t my_seek(struct file *file, loff_t offset, int whence)
 {
-	loff_t new_offset = 0;
-	pr_alert("%s offset %lld, whence %d (0 abs, 1/2 relative cur/end)", __func__, offset, whence);
-
-	switch(whence)
-	{
-		case 0:
-			new_offset = offset;
-			break;
-		case 1:
-			new_offset = file->f_pos + offset;
-			break;
-		case 2:
-			//new_offset = ((struct my_private_data*)file->private_data)->size + offset;
-			break;
-		default:
-			return -EINVAL;
-	}
-	if(new_offset < 0)
-	{
-		return -EINVAL;
-	}
-
-	file->f_pos = new_offset;
-
-	return new_offset;
+	// this stumb make the device file 'seekable', we don't use it
+	return 0;
 }
 
 static ssize_t my_write(struct file *file, const char __user *user_buffer,
 					size_t size, loff_t * offset)
 {
-	//struct my_private_data* data = (struct my_private_data *) file->private_data;
 	struct my_circ_buffer* p_circ_buffer;
 	ssize_t ret = -1;
 	unsigned long head;
@@ -89,14 +61,16 @@ static ssize_t my_write(struct file *file, const char __user *user_buffer,
 	tail = READ_ONCE(p_circ_buffer->tail);
 
 	circ_space = CIRC_SPACE(head, tail, p_circ_buffer->size);
-	pr_alert("%s: %d circ_cpace  %ld, head %ld, tail %ld, size %ld\n", __func__, __LINE__, \
-	circ_space, head, tail, p_circ_buffer->size);
-	if (circ_space > 0)
+	pr_alert("%s: %d circ_cpace  %ld, head %ld, tail %ld, buffer->size %ld system size %ld\n", __func__, __LINE__, \
+	circ_space, head, tail, \
+	p_circ_buffer->size, size);
+
+	if (circ_space >= 1)
 	{
 
 			char* p_item  = &(p_circ_buffer->buffer[head]);
 
-			if (copy_from_user(p_item, user_buffer, size))
+			if (copy_from_user(p_item, user_buffer, 1))
 			{
 				ret = -EFAULT;
 				goto out;
