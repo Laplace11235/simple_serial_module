@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from time import sleep
 import unittest as ut
 import os as os
 
@@ -54,7 +55,6 @@ class Test(ut.TestCase):
 		with  open(device_filename, "r+") as dev_file:
 			pass
 
-
 	def test_writeToEmpty(self):
 		write_str = "RnVjawo"
 		with  open(device_filename, "w") as dev_file:
@@ -63,9 +63,8 @@ class Test(ut.TestCase):
 
 	def test_readFromEmpty(self):
 		with  open(device_filename, "r") as dev_file:
-			read_buff = dev_file.read()
+			read_buff = dev_file.read(1)
 		self.assertEqual(read_buff, "", "Read buffer not empty")
-
 
 	def test_writeRead(self):
 		write_str = "dGhpcwo"
@@ -73,7 +72,7 @@ class Test(ut.TestCase):
 			res = dev_file.write(write_str)
 			self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-			dev_file.seek(0)		# only for regular, non character-device files
+			dev_file.seek(0)		# because file opened in non O_DIRECT mode
 
 			read_buff = dev_file.read(len(write_str))
 			self.assertEqual(read_buff, write_str, "Mismatch between reading and writing")
@@ -85,7 +84,7 @@ class Test(ut.TestCase):
 			res = dev_file.write(write_str)
 			self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-			dev_file.seek(0)		# only for regular, non character-device files
+			dev_file.seek(0)		# because file opened in non O_DIRECT mode
 
 			read_buff = dev_file.read(len(write_str))
 			self.assertEqual(read_buff, write_str, "Mismatch between reading and writing")
@@ -93,20 +92,20 @@ class Test(ut.TestCase):
 			res = dev_file.write(write_str)
 			self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def i_test_writeUntillError(self):
+	def ignore_test_writeUntillError(self):
 		write_str = "YWdhaW4K"
 		with  open(device_filename, "r+") as dev_file:
 			for _ in range(0, 4096):
 				res = dev_file.write(write_str)
 				self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def test_readUntillError(self):
+	def ignore_test_readUntillError(self):
 		write_str = "YW5kIGFnYWluCg"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)
 			self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-			dev_file.seek(0)		# only for regular, non character-device files
+			dev_file.seek(0)		# because file opened in non O_DIRECT mode
 
 			read_buff = dev_file.read(len(write_str) + 1)
 			self.assertEqual(read_buff, write_str, "Mismatch between reading and writing")
