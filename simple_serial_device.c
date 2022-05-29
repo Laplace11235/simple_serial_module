@@ -7,13 +7,13 @@
 
 #include <linux/circ_buf.h>
 
-// TODO create special character device file from module code
 // TODO buffer size as parameter?
 // TODO debug out
 // TODO indets of code
 
 #define DRIVER_NAME    "my_device_driver" 
-
+#define CH_FILE_NAME   "simple_serial_device"
+#define CLASS_DEVICE   "simple_serial_device_class"
 #define __BUFFER_SIZE	16
 
 static DEFINE_SPINLOCK(consumer_lock);
@@ -26,6 +26,8 @@ struct my_circ_buffer{
 	ssize_t 	  size;
 };
 
+static struct class *dev_class;
+static struct device *device;
 
 static struct cdev my_cdev;
 static struct my_circ_buffer* _p_circ_buffer;
@@ -147,9 +149,11 @@ const struct file_operations my_fops = {
 static int my_init(void)
 {
 	dev_t device_id;
-	int alloc_err = -1;
-	int add_err   = -1;
-	int enomem	  = -1;
+	int alloc_err      = -1;
+	int add_err        = -1;
+	int class_cr_err   = -1;
+	int dev_cr_err     = -1;
+	int enomem	       = -1;
 
 	alloc_err= alloc_chrdev_region(&device_id, 0, num_of_dev, DRIVER_NAME);
 
@@ -171,6 +175,21 @@ static int my_init(void)
 		goto error_out;
 	}
 
+	dev_class = class_create(THIS_MODULE, CLASS_DEVICE);
+	if(dev_class == NULL)
+	{
+		pr_err("Cannot create the struct class %s for device\n", CLASS_DEVICE);
+		goto error_out;
+	}
+	class_cr_err = 0;  
+
+	device = device_create(dev_class,NULL,device_id,NULL, CH_FILE_NAME);
+	if(device == NULL)
+	{
+		pr_err("Cannot create the device file %s\n", CH_FILE_NAME);
+		goto error_out;
+	}
+	dev_cr_err = 0;
 
 	_p_circ_buffer = kmalloc(sizeof(struct my_circ_buffer), GFP_KERNEL);
 
@@ -198,6 +217,16 @@ error_out:
 		unregister_chrdev_region(device_id, num_of_dev);
 	}
 	
+	if(class_cr_err == 0)
+	{
+        class_destroy(dev_class);
+	}
+		   
+	if(dev_cr_err == 0)
+	{
+        unregister_chrdev_region(device_id,1);
+	}
+
 	if(enomem == 0)
 	{
 		kfree(_p_circ_buffer);
@@ -210,6 +239,10 @@ static void my_exit(void)
 	dev_t dev = MKDEV(my_major, 0);
 
 	cdev_del(&my_cdev);
+
+	device_destroy(dev_class,dev);
+	class_destroy(dev_class);
+
 	unregister_chrdev_region(dev, num_of_dev);
 	pr_alert("%s driver removed\n", DRIVER_NAME);
 	kfree(_p_circ_buffer);

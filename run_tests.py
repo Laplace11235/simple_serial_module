@@ -4,21 +4,12 @@ from time import sleep
 import unittest as ut
 import os as os
 
-device_filename = "/dev/symbolic_device"
+device_filename = "/dev/simple_serial_device"
 module_name     = "simple_serial_device"
 module_filename = "{0}.ko".format(module_name)
-major_num	    = 236
-minor_num		= 0
+
 
 class Test(ut.TestCase):
-	def __createDeviceFile__(self):
-		res = os.system("mknod {0} c {1} {2}".format(device_filename, major_num, minor_num));
-		self.assertEqual(res, 0, "Cannot create symbolic device file")
-
-	def __deleteDeviceFile__(self):
-		res = os.system("rm {0}".format(device_filename));
-		self.assertEqual(res, 0, "Cannot remove symbolic device file")
-
 	def __load_module__(self):
 		res = os.system("insmod {0}".format(module_filename));
 		self.assertEqual(res, 0, "Cannot load module")
@@ -33,10 +24,8 @@ class Test(ut.TestCase):
 
 	def setUp(self):
 		self.__load_module__()
-		self.__createDeviceFile__()
 
 	def tearDown(self):
-		self.__deleteDeviceFile__()
 		self.__unload_module__()
 
 	####################### Tests ##############################
@@ -113,8 +102,17 @@ class Test(ut.TestCase):
 
 			dev_file.read()
 			buf = dev_file.read()
-			self.assertAlmostEqual(buf, "")
+			self.assertEqual(buf, "")
 
+	def test_openWriteCloseOpenRead(self):
+		write_str = "YW5kIGFnYWluCg"
+		with  open(device_filename, "w") as dev_file:
+			res = dev_file.write(write_str)
+			self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
+
+		with  open(device_filename, "r") as dev_file:
+			buf = dev_file.read()
+			self.assertEqual(buf, write_str, "Mismatch between reading and writing")
 
 if __name__ == '__main__':
 	ut.main()
