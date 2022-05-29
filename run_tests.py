@@ -4,14 +4,14 @@ from time import sleep
 import unittest as ut
 import os as os
 
-device_filename = "/dev/simple_serial_device"
-module_name     = "simple_serial_device"
-module_filename = "{0}.ko".format(module_name)
-
+device_filename   = "/dev/simple_serial_device"
+module_name       = "simple_serial_device"
+module_filename   = "{0}.ko".format(module_name)
+module_parameters = "buffer_size=32"
 
 class Test(ut.TestCase):
 	def __load_module__(self):
-		res = os.system("insmod {0}".format(module_filename));
+		res = os.system("insmod {0} {1}".format(module_filename, module_parameters));
 		self.assertEqual(res, 0, "Cannot load module")
 	
 	def __unload_module__(self):

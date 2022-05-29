@@ -7,14 +7,15 @@
 
 #include <linux/circ_buf.h>
 
-// TODO buffer size as parameter?
 // TODO debug out
 // TODO indets of code
 
 #define SIMPLE_SERIAL_DEVICE_CREATE_FILE
 
 #define DRIVER_NAME    "my_device_driver" 
-#define __BUFFER_SIZE	16
+
+static int buffer_size=256;
+module_param(buffer_size, int, 0);
 
 #ifdef SIMPLE_SERIAL_DEVICE_CREATE_FILE
 
@@ -27,7 +28,7 @@ static DEFINE_SPINLOCK(consumer_lock);
 static DEFINE_SPINLOCK(producer_lock);
 
 struct my_circ_buffer{
-	char buffer[__BUFFER_SIZE];
+	char* 		buffer;
 	unsigned long head;
 	unsigned long tail;
 	ssize_t 	  size;
@@ -39,16 +40,24 @@ struct my_circ_buffer{
 #endif
 
 static struct cdev my_cdev;
-static struct my_circ_buffer* _p_circ_buffer;
+static struct my_circ_buffer  circ_buffer;
 static unsigned int my_major                = 0;
 static unsigned int num_of_dev              = 1;
 
 
+static int __is_pow_2(int val)
+{
+	int count = 0;	
+	while(val){
+		count += (val & 1);
+		val >>=1;
+	}
+	return count == 1;
+}
+
 static int my_open(struct inode *inode, struct file *file)
 {
-	pr_alert("open serial device, size private_data %ld\n", sizeof(struct my_circ_buffer));
-
-	file->private_data      = _p_circ_buffer;
+	file->private_data      = &circ_buffer;
 	return 0;
 }
 static loff_t my_seek(struct file *file, loff_t offset, int whence)
@@ -167,6 +176,11 @@ static int my_init(void)
 	int dev_cr_err     = -1;
 #endif
 
+	if(!__is_pow_2(buffer_size) && buffer_size > 1)
+	{
+		pr_err("buffer_size=%d have to be pow2\n", buffer_size);
+		goto error_out;
+	}
 	alloc_err= alloc_chrdev_region(&device_id, 0, num_of_dev, DRIVER_NAME);
 
 	if(alloc_err != 0)
@@ -205,18 +219,18 @@ static int my_init(void)
 	dev_cr_err = 0;
 #endif
 
-	_p_circ_buffer = kmalloc(sizeof(struct my_circ_buffer), GFP_KERNEL);
+	circ_buffer.buffer = kmalloc(buffer_size, GFP_KERNEL);
 
-	if(_p_circ_buffer == NULL)
+	if(circ_buffer.buffer == NULL)
 	{
 		goto error_out;
 	}
 	enomem = 0;
-	_p_circ_buffer->head = 0;
-	_p_circ_buffer->tail = 0;
-	_p_circ_buffer->size = __BUFFER_SIZE;
+	circ_buffer.head = 0;
+	circ_buffer.tail = 0;
+	circ_buffer.size = buffer_size;
 
-	pr_alert("%s driver(major: %d) installed.\n", DRIVER_NAME, my_major);
+	pr_alert("%s driver(major: %d) installed. buffer_size: %d\n", DRIVER_NAME, my_major, buffer_size);
 
 	return 0;
 
@@ -245,7 +259,7 @@ error_out:
 
 	if(enomem == 0)
 	{
-		kfree(_p_circ_buffer);
+		kfree(circ_buffer.buffer);
 	}
 	return -1;
 }
@@ -263,7 +277,7 @@ static void my_exit(void)
 
 	unregister_chrdev_region(dev, num_of_dev);
 	pr_alert("%s driver removed\n", DRIVER_NAME);
-	kfree(_p_circ_buffer);
+	kfree(circ_buffer.buffer);
 }
 
 module_init(my_init)
