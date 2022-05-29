@@ -11,10 +11,17 @@
 // TODO debug out
 // TODO indets of code
 
+#define SIMPLE_SERIAL_DEVICE_CREATE_FILE
+
 #define DRIVER_NAME    "my_device_driver" 
+#define __BUFFER_SIZE	16
+
+#ifdef SIMPLE_SERIAL_DEVICE_CREATE_FILE
+
 #define CH_FILE_NAME   "simple_serial_device"
 #define CLASS_DEVICE   "simple_serial_device_class"
-#define __BUFFER_SIZE	16
+
+#endif
 
 static DEFINE_SPINLOCK(consumer_lock);
 static DEFINE_SPINLOCK(producer_lock);
@@ -26,8 +33,10 @@ struct my_circ_buffer{
 	ssize_t 	  size;
 };
 
-static struct class *dev_class;
-static struct device *device;
+#ifdef SIMPLE_SERIAL_DEVICE_CREATE_FILE
+	static struct class *dev_class;
+	static struct device *device;
+#endif
 
 static struct cdev my_cdev;
 static struct my_circ_buffer* _p_circ_buffer;
@@ -151,9 +160,12 @@ static int my_init(void)
 	dev_t device_id;
 	int alloc_err      = -1;
 	int add_err        = -1;
+	int enomem	       = -1;
+
+#ifdef SIMPLE_SERIAL_DEVICE_CREATE_FILE
 	int class_cr_err   = -1;
 	int dev_cr_err     = -1;
-	int enomem	       = -1;
+#endif
 
 	alloc_err= alloc_chrdev_region(&device_id, 0, num_of_dev, DRIVER_NAME);
 
@@ -175,6 +187,7 @@ static int my_init(void)
 		goto error_out;
 	}
 
+#ifdef SIMPLE_SERIAL_DEVICE_CREATE_FILE
 	dev_class = class_create(THIS_MODULE, CLASS_DEVICE);
 	if(dev_class == NULL)
 	{
@@ -190,6 +203,7 @@ static int my_init(void)
 		goto error_out;
 	}
 	dev_cr_err = 0;
+#endif
 
 	_p_circ_buffer = kmalloc(sizeof(struct my_circ_buffer), GFP_KERNEL);
 
@@ -217,6 +231,7 @@ error_out:
 		unregister_chrdev_region(device_id, num_of_dev);
 	}
 	
+#ifdef SIMPLE_SERIAL_DEVICE_CREATE_FILE
 	if(class_cr_err == 0)
 	{
         class_destroy(dev_class);
@@ -226,6 +241,7 @@ error_out:
 	{
         unregister_chrdev_region(device_id,1);
 	}
+#endif
 
 	if(enomem == 0)
 	{
@@ -240,8 +256,10 @@ static void my_exit(void)
 
 	cdev_del(&my_cdev);
 
+#ifdef SIMPLE_SERIAL_DEVICE_CREATE_FILE
 	device_destroy(dev_class,dev);
 	class_destroy(dev_class);
+#endif
 
 	unregister_chrdev_region(dev, num_of_dev);
 	pr_alert("%s driver removed\n", DRIVER_NAME);
