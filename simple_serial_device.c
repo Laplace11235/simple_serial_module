@@ -117,10 +117,10 @@ static ssize_t my_read(struct file *file, char *user_buffer, size_t size, loff_t
 	head = smp_load_acquire(&(p_circ_buffer->head));
 	tail = p_circ_buffer->tail;
 
-	circ_cnt = CIRC_CNT(head, tail, p_circ_buffer->size) > 0; 
+	circ_cnt = CIRC_CNT(head, tail, p_circ_buffer->size); 
 	pr_alert("%s: %d circ_cnt %ld, head %ld, tail %ld, size %ld\n", __func__, __LINE__, \
 	circ_cnt, head, tail, p_circ_buffer->size);
-	if (circ_cnt > 0) 
+	if (circ_cnt >= 1) 
 	{
 			/* extract one item from the buffer */
 			char* item = &(p_circ_buffer->buffer[tail]);
