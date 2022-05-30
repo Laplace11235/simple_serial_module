@@ -29,33 +29,39 @@ class Test(ut.TestCase):
 		self.__unload_module__()
 
 	####################### Tests ##############################
-	def test_load_unload(self):
+	def i_test_load_unload(self):
 		self.__check_module_loaded__()
 
-	def test_open_device_file_read(self):
+	def test_echo_cat(self):
+		write_data = "RnVjawo"
+		os.system("echo {0} > {1}".format(write_data, device_filename));
+		ret = os.system("cat {0}".format(device_filename));
+		self.assertEqual(ret, 0)
+
+	def i_test_open_device_file_read(self):
 		with  open(device_filename, "r") as dev_file:
 			pass
 
-	def test_open_device_file_write(self):
+	def i_test_open_device_file_write(self):
 		with  open(device_filename, "w") as dev_file:
 			pass
 
-	def test_open_device_file_append(self):
+	def i_test_open_device_file_append(self):
 		with  open(device_filename, "r+") as dev_file:
 			pass
 
-	def test_writeToEmpty(self):
+	def i_test_writeToEmpty(self):
 		write_str = "RnVjawo"
 		with  open(device_filename, "w") as dev_file:
 			res = dev_file.write(write_str)
 		self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def test_readFromEmpty(self):
+	def i_test_readFromEmpty(self):
 		with  open(device_filename, "r") as dev_file:
 			read_buff = dev_file.read(1)
 		self.assertEqual(read_buff, "", "Read buffer not empty")
 
-	def test_writeRead(self):
+	def i_test_writeRead(self):
 		write_str = "dGhpcwo"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)
@@ -67,7 +73,7 @@ class Test(ut.TestCase):
 			self.assertEqual(read_buff, write_str, "Mismatch between reading and writing")
 
 
-	def test_writeReadWrite(self):
+	def i_test_writeReadWrite(self):
 		write_str = "ZXhhbXBsZQo"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)
@@ -81,7 +87,7 @@ class Test(ut.TestCase):
 			res = dev_file.write(write_str)
 			self.assertEqual(len(write_str), res, "Cannot write {0} sybmol(s)".format(len(write_str)))
 
-	def test_writeUntillError(self):
+	def i_test_writeUntillError(self):
 		write_str = "YWdhaW4K"
 		with  open(device_filename, "r+") as dev_file:
 			try:
@@ -92,7 +98,7 @@ class Test(ut.TestCase):
 			else:
 				self.fail("Operation write should not be permitted")
 
-	def test_readUntillError(self):
+	def i_test_readUntillError(self):
 		write_str = "YW5kIGFnYWluCg"
 		with  open(device_filename, "r+") as dev_file:
 			res = dev_file.write(write_str)
@@ -104,7 +110,7 @@ class Test(ut.TestCase):
 			buf = dev_file.read()
 			self.assertEqual(buf, "")
 
-	def test_openWriteCloseOpenRead(self):
+	def i_test_openWriteCloseOpenRead(self):
 		write_str = "YW5kIGFnYWluCg"
 		with  open(device_filename, "w") as dev_file:
 			res = dev_file.write(write_str)

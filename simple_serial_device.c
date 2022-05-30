@@ -62,15 +62,38 @@ static int my_open(struct inode *inode, struct file *file)
 }
 static loff_t my_seek(struct file *file, loff_t offset, int whence)
 {
-	// this stumb make the device file 'seekable', we don't use it
-	return 0;
+	loff_t new_offset = 0;
+	pr_alert("%s offset %lld, whence %d (0 abs, 1/2 relative cur/end)", __func__, offset, whence);
+
+	switch(whence)
+	{
+		case 0:
+			new_offset = offset;
+			break;
+		case 1:
+			new_offset = file->f_pos + offset;
+			break;
+		case 2:
+			//new_offset = ((struct my_private_data*)file->private_data)->size + offset;
+			break;
+		default:
+			return -EINVAL;
+	}
+	if(new_offset < 0)
+	{
+		return -EINVAL;
+	}
+
+	file->f_pos = new_offset;
+
+	return new_offset;
 }
 
 static ssize_t my_write(struct file *file, const char __user *user_buffer,
 					size_t size, loff_t * offset)
 {
 	struct my_circ_buffer* p_circ_buffer;
-	ssize_t ret = -1;
+	ssize_t ret = 0;
 	unsigned long head;
 	unsigned long tail;
 	ssize_t circ_space = 0;
@@ -81,20 +104,19 @@ static ssize_t my_write(struct file *file, const char __user *user_buffer,
 	tail = READ_ONCE(p_circ_buffer->tail);
 
 	circ_space = CIRC_SPACE(head, tail, p_circ_buffer->size);
-	pr_alert("%s: %d circ_cpace  %ld, head %ld, tail %ld, buffer->size %ld system size %ld\n", __func__, __LINE__, \
-	circ_space, head, tail, \
-	p_circ_buffer->size, size);
 
 	if (circ_space >= 1)
 	{
-
 			char* p_item  = &(p_circ_buffer->buffer[head]);
 
-			if (copy_from_user(p_item, user_buffer, 1))
+			if (get_user(*p_item, user_buffer))
 			{
 				ret = -EFAULT;
 				goto out;
 			}
+			pr_alert("%s: %d circ_cpace  %ld, head %ld, tail %ld, buffer->size %ld size %ld *p_item %c \n", __func__, __LINE__, \
+			circ_space, head, tail, \
+			p_circ_buffer->size, size, *p_item);
 			smp_store_release(&(p_circ_buffer->head),
 							(head + 1) & (p_circ_buffer->size - 1));
 			ret = 1;
@@ -104,10 +126,10 @@ out:
 	return ret;
 }
 
-static ssize_t my_read(struct file *file, char *user_buffer, size_t size, loff_t *offset)
+static ssize_t my_read(struct file *file, char __user *user_buffer, size_t size, loff_t *offset)
 {
 	struct my_circ_buffer* p_circ_buffer;
-	ssize_t ret = -1;
+	ssize_t ret = 0;
 	unsigned long head;
 	unsigned long tail;
 	ssize_t circ_cnt = 0;
@@ -122,18 +144,15 @@ static ssize_t my_read(struct file *file, char *user_buffer, size_t size, loff_t
 	circ_cnt, head, tail, p_circ_buffer->size);
 	if (circ_cnt >= 1) 
 	{
-			/* extract one item from the buffer */
 			char* item = &(p_circ_buffer->buffer[tail]);
 
-			//consume_item(item);
-			if(copy_to_user(user_buffer, item, 1))
+			if(put_user(*item, user_buffer) == 0)
 			{
 				pr_alert("%s: %d copy_to_user failed\n", __func__, __LINE__);
 				ret = -EFAULT;
 				goto out;
 			}
 
-			/* Finish reading descriptor before incrementing tail. */
 			smp_store_release(&(p_circ_buffer->tail),
 							(tail + 1) & (p_circ_buffer->size - 1));
 
@@ -144,7 +163,7 @@ static ssize_t my_read(struct file *file, char *user_buffer, size_t size, loff_t
 		ret = 0;
 	}
 
- out:
+out:
 	spin_unlock(&consumer_lock);
 
 	return ret;
